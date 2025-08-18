@@ -7,6 +7,12 @@ from langchain_openai import AzureChatOpenAI
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 
+import docx
+import io
+from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.core.credentials import AzureKeyCredential
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+
 # Load environment variables
 load_dotenv()
 
@@ -25,6 +31,31 @@ llm_client = AzureChatOpenAI(
 )
 
 # --- Helper functions ---
+
+def extract_text_from_docx(path: str) -> str:
+    doc = docx.Document(path)
+    extracted_text = []
+
+    # 1. Extract normal text
+    for para in doc.paragraphs:
+        extracted_text.append(para.text)
+
+    # 2. Extract and OCR images
+    for rel in doc.part.rels.values():
+        if rel.reltype == RT.IMAGE:
+            image_data = rel.target_part.blob  # raw image bytes
+
+            # OCR the image
+            poller = client.begin_analyze_document(
+                model_id="prebuilt-read", 
+                document=image_data
+            )
+            result = poller.result()
+            for page in result.pages:
+                for line in page.lines:
+                    extracted_text.append(line.content)
+
+    return "\n".join(filter(None, extracted_text))
 
 def extract_text_from_file(file_bytes: bytes) -> str:
     """Extract text using Azure Document Intelligence OCR (prebuilt-read)."""
@@ -92,8 +123,10 @@ if uploaded_files:
         file_bytes = uploaded_file.read()
 
         try:
-            # Extract text
-            extracted_text = extract_text_from_file(file_bytes)
+            if uploaded_file.name.lower().endswith(".docx"):
+                extracted_text = extract_text_from_docx(file_bytes)
+            else:
+                extracted_text = extract_text_from_file(file_bytes)
 
             if not extracted_text.strip():
                 results.append({
