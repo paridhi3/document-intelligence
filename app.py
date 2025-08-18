@@ -44,10 +44,13 @@ def extract_text_from_docx(path: str) -> str:
         if rel.reltype == RT.IMAGE:
             image_data = rel.target_part.blob  # raw image bytes
 
+            # Wrap bytes in BytesIO
+            image_stream = io.BytesIO(image_data)
+
             # OCR the image
             poller = client.begin_analyze_document(
                 model_id="prebuilt-read", 
-                document=image_data
+                document=image_stream
             )
             result = poller.result()
             for page in result.pages:
