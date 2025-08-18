@@ -24,10 +24,12 @@ import base64
 
 def extract_text_from_file(file_bytes: bytes) -> str:
     """Extract text using Azure Document Intelligence OCR (prebuilt-read)."""
-    base64_string = base64.b64encode(file_bytes).decode("utf-8")
-    request = AnalyzeDocumentRequest(base64_string)
+    request = AnalyzeDocumentRequest(bytes_source=file_bytes)
 
-    poller = client.begin_analyze_document(model_id="prebuilt-read", body=request)
+    poller = client.begin_analyze_document(
+        model_id="prebuilt-read", 
+        analyze_request=request
+    )
     result = poller.result()
 
     text_output = []
@@ -36,6 +38,7 @@ def extract_text_from_file(file_bytes: bytes) -> str:
             text_output.append(line.content)
 
     return "\n".join(text_output)
+
 
 
 
