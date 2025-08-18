@@ -9,7 +9,6 @@ from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 
 import docx
 import io
-from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 
