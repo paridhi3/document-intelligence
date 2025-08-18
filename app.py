@@ -79,7 +79,7 @@ st.write("Upload one or more legal documents (PDF or image) to classify as **Jud
 
 uploaded_files = st.file_uploader(
     "Upload PDF or image files", 
-    type=["pdf", "png", "jpg", "jpeg"], 
+    type=["pdf", "png", "jpg", "jpeg", "docx"], 
     accept_multiple_files=True
 )
 
