@@ -15,13 +15,19 @@ key = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY")
 client = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
 
 # OpenAI / Azure OpenAI setup
-llm_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+llm_client = OpenAI(api_key=os.getenv("AZURE_OPENAI_API_KEY"))
 
 # --- Helper functions ---
 
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
+import base64
+
 def extract_text_from_file(file_bytes: bytes) -> str:
-    """Extract text from PDF/image using Azure Document Intelligence OCR (prebuilt-read)."""
-    poller = client.begin_analyze_document("prebuilt-read", file_bytes)
+    """Extract text using Azure Document Intelligence OCR (prebuilt-read)."""
+    base64_string = base64.b64encode(file_bytes).decode("utf-8")
+    request = AnalyzeDocumentRequest(base64_string)
+
+    poller = client.begin_analyze_document(model_id="prebuilt-read", body=request)
     result = poller.result()
 
     text_output = []
@@ -31,21 +37,37 @@ def extract_text_from_file(file_bytes: bytes) -> str:
 
     return "\n".join(text_output)
 
+
+
 def process_with_llm(extracted_text: str) -> str:
-    """Send extracted OCR text to LLM for classification (Judgement vs Non-Judgement)."""
+    """Send extracted OCR text and images to LLM for classification (Judgement vs Non-Judgement)."""
     response = llm_client.chat.completions.create(
-        model=os.getenv("MODEL_NAME", "gpt-4o-mini"),  # default to gpt-4o-mini
-        messages=[
-            {
-                "role": "system", 
-                "content": "You are a legal document classifier. Classify the given text as either 'Judgement' or 'Non-Judgement'."
-            },
-            {
-                "role": "user", 
-                "content": extracted_text
-            }
-        ],
-        temperature=0.0
+    model=os.getenv("MODEL_NAME"),
+    messages=[
+        {
+            "role": "system", 
+            "content": (
+                "You are a legal document classifier. Classify the given text as either 'Judgement' or 'Non-Judgement'. "
+                "Judgments often explicitly state JUDGMENT, 'FINAL JUDGMENT,' 'ORDER AND JUDGMENT,' or 'DECREE' at the top. This is a very strong indicator. "
+                "Case Caption: All court documents have this, but a judgment will clearly state the court, case name, and docket number. "
+                "Signature Block: The judge's signature, date of judgment, and sometimes the clerk's attestation. "
+                "Keywords indicating Non-Judgment: "
+                "'COMPLAINT' (especially in the title), "
+                "'MOTION to...', "
+                "'BRIEF in Support/Opposition', "
+                "'NOTICE of...', "
+                "'STIPULATION', "
+                "'AFFIDAVIT', "
+                "'REQUEST for Production', "
+                "'VERIFIED PETITION'."
+            )
+        },
+        {
+            "role": "user", 
+            "content": extracted_text
+        }
+    ],
+    temperature=0.0
     )
     return response.choices[0].message.content.strip()
 
@@ -100,7 +122,6 @@ if uploaded_files:
     st.success("✅ Classification complete!")
     df = pd.DataFrame(results)
     st.dataframe(df, use_container_width=True)
-
 
 # import os
 # import streamlit as st
